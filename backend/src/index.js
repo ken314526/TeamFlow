@@ -59,9 +59,12 @@ mongoose
     console.error('MongoDB connection error:', err);
   });
 
-httpServer.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
-  console.log(`CORS enabled for ${CORS_ORIGIN}`);
-});
+if (!process.env.VERCEL) {
+  httpServer.listen(PORT, () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`CORS enabled for ${CORS_ORIGIN}`);
+  });
+}
 
+export default app;
 export { io };
