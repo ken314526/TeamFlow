@@ -1,5 +1,5 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import { boardsAPI, listsAPI } from '@/api/services';
+import { boardsAPI, listsAPI, membersAPI } from '@/api/services';
 import type { Board, BoardsState, List, Task } from '@/types';
 
 const initialState: BoardsState = {
@@ -14,8 +14,9 @@ export const fetchBoards = createAsyncThunk('boards/fetchAll', async (_, { rejec
   try {
     const { data } = await boardsAPI.getAll();
     return data;
-  } catch (err: any) {
-    return rejectWithValue(err.response?.data?.message || 'Failed to fetch boards');
+  } catch (err: unknown) {
+    const msg = (err as any)?.response?.data?.message || 'Failed to fetch boards';
+    return rejectWithValue(msg);
   }
 });
 
@@ -26,10 +27,43 @@ export const fetchBoard = createAsyncThunk('boards/fetchOne', async (id: string,
       listsAPI.getByBoard(id),
     ]);
     return { board: boardRes.data, lists: listsRes.data };
-  } catch (err: any) {
-    return rejectWithValue(err.response?.data?.message || 'Failed to fetch board');
+  } catch (err: unknown) {
+    const msg = (err as any)?.response?.data?.message || 'Failed to fetch board';
+    return rejectWithValue(msg);
   }
 });
+
+export const addBoardMember = createAsyncThunk(
+  'boards/addMember',
+  async (
+    { boardId, email }: { boardId: string; email: string },
+    { rejectWithValue }
+  ) => {
+    try {
+      const res = await membersAPI.add(boardId, email);
+      return res.data as Board;
+    } catch (err: unknown) {
+      const msg = (err as any)?.response?.data?.message || 'Failed to add member';
+      return rejectWithValue(msg);
+    }
+  }
+);
+
+export const removeBoardMember = createAsyncThunk(
+  'boards/removeMember',
+  async (
+    { boardId, userId }: { boardId: string; userId: string },
+    { rejectWithValue }
+  ) => {
+    try {
+      const res = await membersAPI.remove(boardId, userId);
+      return res.data as Board;
+    } catch (err: unknown) {
+      const msg = (err as any)?.response?.data?.message || 'Failed to remove member';
+      return rejectWithValue(msg);
+    }
+  }
+);
 
 export const createBoard = createAsyncThunk(
   'boards/create',
@@ -37,8 +71,9 @@ export const createBoard = createAsyncThunk(
     try {
       const res = await boardsAPI.create(data);
       return res.data;
-    } catch (err: any) {
-      return rejectWithValue(err.response?.data?.message || 'Failed to create board');
+    } catch (err: unknown) {
+      const msg = (err as any)?.response?.data?.message || 'Failed to create board';
+      return rejectWithValue(msg);
     }
   }
 );
@@ -52,7 +87,12 @@ const boardsSlice = createSlice({
     },
     addTaskToList(state, action: PayloadAction<{ listId: string; task: Task }>) {
       const list = state.lists.find(l => l.id === action.payload.listId);
-      if (list) list.tasks.push(action.payload.task);
+      if (list) {
+        const exists = list.tasks.some((t) => t.id === action.payload.task.id);
+        if (!exists) {
+          list.tasks.push(action.payload.task);
+        }
+      }
     },
     updateTaskInList(state, action: PayloadAction<Task>) {
       for (const list of state.lists) {
@@ -80,7 +120,9 @@ const boardsSlice = createSlice({
       destList.tasks.splice(newPosition, 0, task);
     },
     addList(state, action: PayloadAction<List>) {
-      state.lists.push(action.payload);
+      if (!state.lists.find((l) => l.id === action.payload.id)) {
+        state.lists.push(action.payload);
+      }
     },
     removeList(state, action: PayloadAction<{ listId: string }>) {
       state.lists = state.lists.filter((l) => l.id !== action.payload.listId);
@@ -90,6 +132,26 @@ const boardsSlice = createSlice({
       if (idx !== -1) {
         const tasks = state.lists[idx].tasks;
         state.lists[idx] = { ...action.payload, tasks };
+      }
+    },
+    updateBoard(state, action: PayloadAction<Board>) {
+      if (state.currentBoard && state.currentBoard.id === action.payload.id) {
+        state.currentBoard = action.payload;
+      }
+    },
+    upsertBoard(state, action: PayloadAction<Board>) {
+      const idx = state.boards.findIndex((b) => b.id === action.payload.id);
+      if (idx !== -1) {
+        state.boards[idx] = action.payload;
+      } else {
+        state.boards.push(action.payload);
+      }
+    },
+    removeBoard(state, action: PayloadAction<{ boardId: string }>) {
+      state.boards = state.boards.filter((b) => b.id !== action.payload.boardId);
+      if (state.currentBoard && state.currentBoard.id === action.payload.boardId) {
+        state.currentBoard = null;
+        state.lists = [];
       }
     },
     clearCurrentBoard(state) {
@@ -120,12 +182,30 @@ const boardsSlice = createSlice({
       })
       .addCase(createBoard.fulfilled, (state, action) => {
         state.boards.push(action.payload);
+      })
+      .addCase(addBoardMember.fulfilled, (state, action) => {
+        if (state.currentBoard && state.currentBoard.id === action.payload.id) {
+          state.currentBoard = action.payload;
+        }
+        const idx = state.boards.findIndex((b) => b.id === action.payload.id);
+        if (idx !== -1) {
+          state.boards[idx] = action.payload;
+        }
+      })
+      .addCase(removeBoardMember.fulfilled, (state, action) => {
+        if (state.currentBoard && state.currentBoard.id === action.payload.id) {
+          state.currentBoard = action.payload;
+        }
+        const idx = state.boards.findIndex((b) => b.id === action.payload.id);
+        if (idx !== -1) {
+          state.boards[idx] = action.payload;
+        }
       });
   },
 });
 
 export const {
   setLists, addTaskToList, updateTaskInList, removeTaskFromList,
-  moveTask, addList, removeList, updateList, clearCurrentBoard,
+  moveTask, addList, removeList, updateList, updateBoard, upsertBoard, removeBoard, clearCurrentBoard,
 } = boardsSlice.actions;
 export default boardsSlice.reducer;

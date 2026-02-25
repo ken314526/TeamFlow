@@ -12,6 +12,7 @@ import { ArrowLeft, Plus, Users, Loader2 } from 'lucide-react';
 import { tasksAPI, listsAPI } from '@/api/services';
 import { joinBoard, leaveBoard } from '@/socket';
 import { motion } from 'framer-motion';
+import InviteModal from '@/components/InviteModal';
 
 const BoardView: React.FC = () => {
   const { boardId } = useParams<{ boardId: string }>();
@@ -20,6 +21,7 @@ const BoardView: React.FC = () => {
   const { currentBoard, lists, loading } = useAppSelector((s) => s.boards);
   const [addingList, setAddingList] = useState(false);
   const [newListTitle, setNewListTitle] = useState('');
+  const [inviteOpen, setInviteOpen] = useState(false);
 
   useEffect(() => {
     if (boardId) {
@@ -80,7 +82,6 @@ const BoardView: React.FC = () => {
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      {/* Header */}
       <header className="sticky top-0 z-30 border-b border-border/50 bg-background/80 backdrop-blur-sm">
         <div className="flex h-14 items-center gap-4 px-4">
           <Button variant="ghost" size="icon" onClick={() => navigate('/')}>
@@ -89,7 +90,7 @@ const BoardView: React.FC = () => {
           <div className="flex-1">
             <h1 className="text-lg font-bold text-foreground">{currentBoard?.name || 'Board'}</h1>
           </div>
-          {currentBoard?.members && currentBoard.members.length > 0 && (
+          {currentBoard && (
             <div className="flex items-center gap-2">
               <div className="flex -space-x-2">
                 {currentBoard.members.slice(0, 5).map((m) => (
@@ -100,7 +101,7 @@ const BoardView: React.FC = () => {
                   </Avatar>
                 ))}
               </div>
-              <Button variant="outline" size="sm">
+              <Button variant="outline" size="sm" onClick={() => setInviteOpen(true)}>
                 <Users className="mr-1 h-3.5 w-3.5" /> Invite
               </Button>
             </div>
@@ -108,7 +109,6 @@ const BoardView: React.FC = () => {
         </div>
       </header>
 
-      {/* Board */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -120,7 +120,6 @@ const BoardView: React.FC = () => {
               <ListColumn key={list.id} list={list} />
             ))}
 
-            {/* Add list */}
             <div className="w-72 flex-shrink-0">
               {addingList ? (
                 <div className="rounded-xl bg-muted/50 border border-border/30 p-3 space-y-2">
@@ -156,6 +155,11 @@ const BoardView: React.FC = () => {
       </motion.div>
 
       <TaskDetailModal />
+      <InviteModal
+        open={inviteOpen}
+        onOpenChange={setInviteOpen}
+        board={currentBoard}
+      />
     </div>
   );
 };

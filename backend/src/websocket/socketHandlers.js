@@ -39,19 +39,19 @@ export const initializeWebSocket = (io) => {
 };
 
 export const emitTaskCreated = (io, boardId, task) => {
-  io.to(`board:${boardId}`).emit('task:created', task);
+  io.to(`board:${boardId}`).emit('task:created', { listId: task.listId, task });
 };
 
 export const emitTaskUpdated = (io, boardId, task) => {
   io.to(`board:${boardId}`).emit('task:updated', task);
 };
 
-export const emitTaskDeleted = (io, boardId, taskId) => {
-  io.to(`board:${boardId}`).emit('task:deleted', { id: taskId });
+export const emitTaskDeleted = (io, boardId, listId, taskId) => {
+  io.to(`board:${boardId}`).emit('task:deleted', { listId, taskId });
 };
 
-export const emitTaskMoved = (io, boardId, task) => {
-  io.to(`board:${boardId}`).emit('task:moved', task);
+export const emitTaskMoved = (io, boardId, payload) => {
+  io.to(`board:${boardId}`).emit('task:moved', payload);
 };
 
 export const emitListCreated = (io, boardId, list) => {
@@ -63,9 +63,13 @@ export const emitListUpdated = (io, boardId, list) => {
 };
 
 export const emitListDeleted = (io, boardId, listId) => {
-  io.to(`board:${boardId}`).emit('list:deleted', { id: listId });
+  io.to(`board:${boardId}`).emit('list:deleted', { listId });
 };
 
 export const emitActivityLogged = (io, boardId, activity) => {
   io.to(`board:${boardId}`).emit('activity:logged', activity);
+};
+
+export const emitBoardUpdated = (io, board) => {
+  io.to(`board:${board._id}`).emit('board:updated', board);
 };

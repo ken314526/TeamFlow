@@ -4,6 +4,9 @@ import { Task } from '../models/Task.js';
 import { Activity } from '../models/Activity.js';
 import { User } from '../models/User.js';
 
+import { emitBoardUpdated } from '../websocket/socketHandlers.js';
+import { io } from '../index.js';
+
 export const boardController = {
   getAll: async (req, res) => {
     try {
@@ -94,6 +97,7 @@ export const boardController = {
         details: `Updated board "${board.name}"`,
       });
 
+      emitBoardUpdated(io, board);
       return res.json(board);
     } catch (error) {
       console.error('Update board error:', error);
@@ -146,6 +150,10 @@ export const boardController = {
         return res.status(404).json({ message: 'Board not found' });
       }
 
+      if (!board.members.some((m) => m.toString() === req.userId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+
       const user = await User.findOne({ email });
 
       if (!user) {
@@ -167,6 +175,18 @@ export const boardController = {
         details: `Added ${user.email} to board`,
       });
 
+      emitBoardUpdated(io, board);
+
+      try {
+        io.sockets.sockets.forEach((s) => {
+          if (s.userId && s.userId.toString() === user._id.toString()) {
+            s.emit('board:added', board);
+          }
+        });
+      } catch (e) {
+        console.error('Error notifying invited user sockets:', e);
+      }
+
       return res.json(board);
     } catch (error) {
       console.error('Add member error:', error);
@@ -183,6 +203,13 @@ export const boardController = {
       if (!board) {
         return res.status(404).json({ message: 'Board not found' });
       }
+      if (!board.members.some((m) => m.toString() === req.userId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+
+      if (board.createdBy.toString() === userId) {
+        return res.status(403).json({ message: 'Cannot remove board owner' });
+      }
 
       board.members = board.members.filter((m) => m.toString() !== userId);
       await board.save();
@@ -196,6 +223,19 @@ export const boardController = {
         action: 'board:update',
         details: `Removed ${user.email} from board`,
       });
+
+      emitBoardUpdated(io, board);
+
+      try {
+        io.sockets.sockets.forEach((s) => {
+          if (s.userId && s.userId.toString() === userId) {
+            s.leave(`board:${id}`);
+            s.emit('board:removed', { boardId: id });
+          }
+        });
+      } catch (e) {
+        console.error('Error notifying removed user sockets:', e);
+      }
 
       return res.json(board);
     } catch (error) {

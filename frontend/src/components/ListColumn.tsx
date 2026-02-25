@@ -63,7 +63,6 @@ const ListColumn: React.FC<Props> = ({ list }) => {
   const handleDeleteList = async () => {
     try {
       await listsAPI.delete(list.id);
-      // remove list from local state (tasks are deleted server-side)
       dispatch(removeList({ listId: list.id }));
       setShowDeleteConfirm(false);
     } catch (err) {
@@ -157,7 +156,6 @@ const ListColumn: React.FC<Props> = ({ list }) => {
         )}
       </Droppable>
 
-      {/* Delete Confirmation Dialog */}
       <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
         <AlertDialogContent>
           <AlertDialogHeader>

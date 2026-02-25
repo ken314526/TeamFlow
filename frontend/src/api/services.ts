@@ -1,7 +1,6 @@
 import client from './client';
 import type { Board, List, Task, Activity, Comment, PaginatedResponse } from '@/types';
 
-// Auth
 export const authAPI = {
   login: (email: string, password: string) =>
     client.post('/api/auth/login', { email, password }),
@@ -13,7 +12,6 @@ export const authAPI = {
     client.put('/api/auth/profile', data),
 };
 
-// Boards
 export const boardsAPI = {
   getAll: () => client.get<Board[]>('/api/boards'),
   getById: (id: string) => client.get<Board>(`/api/boards/${id}`),
@@ -24,7 +22,6 @@ export const boardsAPI = {
   delete: (id: string) => client.delete(`/api/boards/${id}`),
 };
 
-// Lists
 export const listsAPI = {
   getByBoard: (boardId: string) => client.get<List[]>(`/api/boards/${boardId}/lists`),
   create: (boardId: string, data: { title: string; position?: number }) =>
@@ -36,7 +33,6 @@ export const listsAPI = {
     client.put(`/api/lists/${id}/reorder`, { newPosition }),
 };
 
-// Tasks
 export const tasksAPI = {
   create: (listId: string, data: { title: string; description?: string; position?: number }) =>
     client.post<Task>('/api/tasks', { listId, title: data.title, description: data.description ?? '', position: data.position ?? 0 }),
@@ -52,7 +48,6 @@ export const tasksAPI = {
     client.delete(`/api/tasks/${id}/assign/${userId}`),
 };
 
-// Members
 export const membersAPI = {
   add: (boardId: string, email: string) =>
     client.post(`/api/boards/${boardId}/members`, { email }),
@@ -60,13 +55,11 @@ export const membersAPI = {
     client.delete(`/api/boards/${boardId}/members/${userId}`),
 };
 
-// Activity
 export const activityAPI = {
   getByBoard: (boardId: string, page = 1, limit = 20) =>
     client.get<PaginatedResponse<Activity>>(`/api/boards/${boardId}/activity?page=${page}&limit=${limit}`),
 };
 
-// Comments
 export const commentsAPI = {
   getByTask: (taskId: string) =>
     client.get<Comment[]>(`/api/tasks/${taskId}/comments`),

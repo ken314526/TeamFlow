@@ -1,6 +1,13 @@
 import { Task } from "../models/Task.js";
 import { List } from "../models/List.js";
 import { Activity } from "../models/Activity.js";
+import { io } from '../index.js';
+import {
+  emitTaskCreated,
+  emitTaskUpdated,
+  emitTaskDeleted,
+  emitTaskMoved,
+} from '../websocket/socketHandlers.js';
 
 export const taskController = {
   create: async (req, res) => {
@@ -10,6 +17,10 @@ export const taskController = {
       const list = await List.findById(listId);
       if (!list) {
         return res.status(404).json({ message: "List not found" });
+      }
+      const board = await import('../models/Board.js').then(m => m.Board.findById(list.boardId));
+      if (!board || !board.members.some((m) => m.toString() === req.userId)) {
+        return res.status(403).json({ message: 'Access denied' });
       }
 
       const taskCount = await Task.countDocuments({ listId });
@@ -35,6 +46,7 @@ export const taskController = {
         details: `Created task "${title}"`,
       });
 
+      emitTaskCreated(io, list.boardId, task);
       return res.status(201).json(task);
     } catch (error) {
       console.error("Create task error:", error);
@@ -52,6 +64,11 @@ export const taskController = {
       if (!task) {
         return res.status(404).json({ message: "Task not found" });
       }
+      const list = await List.findById(task.listId);
+      const board = await import('../models/Board.js').then(m => m.Board.findById(list.boardId));
+      if (!board || !board.members.some((m) => m.toString() === req.userId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
 
       task.title = title || task.title;
       task.description = description || task.description;
@@ -65,8 +82,6 @@ export const taskController = {
         { path: "assignees", select: "name email" },
       ]);
 
-      const list = await List.findById(task.listId);
-
       await Activity.create({
         boardId: list.boardId,
         taskId: task._id,
@@ -75,6 +90,7 @@ export const taskController = {
         details: `Updated task "${title}"`,
       });
 
+      emitTaskUpdated(io, list.boardId, task);
       return res.json(task);
     } catch (error) {
       console.error("Update task error:", error);
@@ -91,8 +107,11 @@ export const taskController = {
       if (!task) {
         return res.status(404).json({ message: "Task not found" });
       }
-
       const list = await List.findById(task.listId);
+      const board = await import('../models/Board.js').then(m => m.Board.findById(list.boardId));
+      if (!board || !board.members.some((m) => m.toString() === req.userId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
 
       await task.deleteOne();
 
@@ -104,6 +123,7 @@ export const taskController = {
         details: `Deleted task "${task.title}"`,
       });
 
+      emitTaskDeleted(io, list.boardId, list._id.toString(), task._id.toString());
       return res.json({ message: "Task deleted" });
     } catch (error) {
       console.error("Delete task error:", error);
@@ -133,6 +153,10 @@ export const taskController = {
       ]);
 
       const newList = await List.findById(listId);
+      const board = await import('../models/Board.js').then(m => m.Board.findById(newList.boardId));
+      if (!board || !board.members.some((m) => m.toString() === req.userId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
 
       await Activity.create({
         boardId: newList.boardId,
@@ -142,6 +166,12 @@ export const taskController = {
         details: `Moved task to "${newList.title}"`,
       });
 
+      emitTaskMoved(io, newList.boardId, {
+        sourceListId: oldList._id.toString(),
+        destListId: task.listId.toString(),
+        taskId: task._id.toString(),
+        newPosition: task.position,
+      });
       return res.json(task);
     } catch (error) {
       console.error("Move task error:", error);
@@ -159,6 +189,11 @@ export const taskController = {
       if (!task) {
         return res.status(404).json({ message: "Task not found" });
       }
+      const list = await List.findById(task.listId);
+      const board = await import('../models/Board.js').then(m => m.Board.findById(list.boardId));
+      if (!board || !board.members.some((m) => m.toString() === req.userId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
 
       if (!task.assignees.includes(userId)) {
         task.assignees.push(userId);
@@ -170,8 +205,6 @@ export const taskController = {
         { path: "assignees", select: "name email" },
       ]);
 
-      const list = await List.findById(task.listId);
-
       await Activity.create({
         boardId: list.boardId,
         taskId: task._id,
@@ -180,6 +213,7 @@ export const taskController = {
         details: `Assigned user to task`,
       });
 
+      emitTaskUpdated(io, list.boardId, task);
       return res.json(task);
     } catch (error) {
       console.error("Assign task error:", error);
@@ -196,15 +230,17 @@ export const taskController = {
       if (!task) {
         return res.status(404).json({ message: "Task not found" });
       }
+      const list = await List.findById(task.listId);
+      const board = await import('../models/Board.js').then(m => m.Board.findById(list.boardId));
+      if (!board || !board.members.some((m) => m.toString() === req.userId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
 
       task.assignees = task.assignees.filter((a) => a.toString() !== userId);
-      await task.save();
       await task.populate([
         { path: "createdBy", select: "name email" },
         { path: "assignees", select: "name email" },
       ]);
-
-      const list = await List.findById(task.listId);
 
       await Activity.create({
         boardId: list.boardId,
@@ -213,7 +249,7 @@ export const taskController = {
         action: "task:update",
         details: `Unassigned user from task`,
       });
-
+      emitTaskUpdated(io, list.boardId, task);
       return res.json(task);
     } catch (error) {
       console.error("Unassign task error:", error);
@@ -224,6 +260,11 @@ export const taskController = {
   search: async (req, res) => {
     try {
       const { boardId, query } = req.query;
+
+      const board = await import('../models/Board.js').then(m => m.Board.findById(boardId));
+      if (!board || !board.members.some((m) => m.toString() === req.userId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
 
       const tasks = await Task.find({
         $text: { $search: query },

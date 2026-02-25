@@ -52,8 +52,6 @@ const Profile: React.FC = () => {
     navigate('/login');
   };
 
-  // avatar upload removed
-
   if (!user) return null;
 
   return (

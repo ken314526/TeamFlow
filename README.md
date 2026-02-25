@@ -38,6 +38,9 @@ Teams need a lightweight, real-time collaboration tool to:
 
 ### Collaboration Features
 - Assign users to tasks
+- **Invite board members** via email with real-time synchronization across clients. Owners cannot be removed by other members (check enforced on both frontend and backend).
+
+- Database indexes have been added on board members, list boardId, and task listId to dramatically improve load times when fetching boards/lists (reduces slow reloads).
 - Task comments and discussions
 - Real-time updates via WebSockets
 - Activity history tracking with complete audit trail
